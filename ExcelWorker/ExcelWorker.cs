@@ -10,85 +10,75 @@ namespace Exel_XML.Classes
 {
     class ExcelWorker
     {
-        string _fullName;
-        int _workSheet;
-        int _headerRow;
+        string _fileName;
+        int _updateLinks;
+        bool _readOnly;
+        int _format;
+        string _password;
+        string _writeResPassword;
+        bool _ignoreReadOnlyRecommended;
+        XlPlatform _origin;
+        string _delimiter;
+        bool _editable;
+        bool _notify;
+        bool _converter;
+        bool _addToMru;
+        bool _local;
+        bool _corruptLoad;
 
-        int _rows;
-        int _columns;
+
+        //Sheet number
+        int _workSheet;
 
 
         Application _objExcel;
         Workbook _objWorkBook;
         Worksheet _objWorkSheet;
-        Range _range;
 
-        public string FileNameWithoutExtension
+
+        public int Rows
         {
-            get { return Path.GetFileNameWithoutExtension(_fullName); }
+            get { return _objWorkSheet.UsedRange.Rows.Count; }
         }
+        public int Columns
+        {
+            get { return _objWorkSheet.UsedRange.Columns.Count; }
+        }
+
 
         public string FileName
         {
-            get { return Path.GetFileName(_fullName); }
+            get { return _fileName; }          
         }
 
-        public string Extension
+
+        public ExcelWorker(string FileName)
         {
-            get { return Path.GetExtension(_fullName); }
+            _objExcel = new Application();
+            _workSheet = 1;
+            _fileName = FileName;
+
+            _updateLinks = 0;
+            _readOnly = true;
+            _format = 5;
+            _password = "";
+            _writeResPassword = "";
+            _ignoreReadOnlyRecommended = true;
+            _origin = XlPlatform.xlWindows;
+            _delimiter = "";
+            _editable = false;
+            _notify = false;
+            _converter = false;
+            _addToMru = false;
+            _local = false;
+            _corruptLoad = false;
         }
 
-        public int HeaderRow
-        {
-            get { return _headerRow; }
-            set { _headerRow = value; }
-        }
-        public int Rows
-        {
-            get { return _rows; }
-        }
 
-        public string FullName
-        {
-            get { return _fullName; }
-            //set { _fullName = value; }
-        }
 
-        public Worksheet Worksheet
-        {
-            get { return _objWorkSheet; }
-        }
-
-        public Application ObjExcel
-        {
-            get { return _objExcel; }
-            //set { _objExcel = value; }
-        }
-
-        public Workbook Workbook
-        {
-            get { return _objWorkBook; }
-            //set { _objWorkBook = value; }
-        }
-        public ExcelWorker(string fullName, int workSheet = 1, int headerRow=1,bool readOnly=true)
-        {
-            _fullName = fullName;
-            _workSheet = workSheet;
-            _headerRow = headerRow;
-
-            _OpenFile(readOnly);
-            _rows = _range.Rows.Count;
-            _columns = _range.Columns.Count;
-
-        }
-        public ExcelWorker()
-        {
-
-        }
 
         //https://msdn.microsoft.com/de-de/library/microsoft.office.interop.excel.workbooks.open(v=office.11).aspx
-        public bool Open(string Filename,
-                            int UpdateLinks=0,
+        public void Open(int UpdateLinks=0,
                             bool ReadOnly=true,
                             int Format=5,
                             string Password="",
@@ -103,81 +93,99 @@ namespace Exel_XML.Classes
                             bool Local=false,
                             bool CorruptLoad=false)
         {
-
             try
             {
-                _objExcel = new Application();
-                _objWorkBook = _objExcel.Workbooks.Open(Filename,UpdateLinks, ReadOnly, Format, Password, WriteResPassword, IgnoreReadOnlyRecommended, Origin, 
-                                                        Delimiter, Editable, Notify, Converter, AddToMru, Local, CorruptLoad);
+                
+                _objWorkBook = _objExcel.Workbooks.Open(_fileName,_updateLinks, _readOnly, _format, _password, _writeResPassword, _ignoreReadOnlyRecommended, _origin, 
+                                                        _delimiter, _editable, _notify, _converter, _addToMru, _local, _corruptLoad);
+
                 _ReadWorkSheet();
-                return true;
+                //return true;
             }
-            catch
+            catch(Exception e)
             {
-                return false;
+                //throw new Exception(e.Message);
+                //return false;
             }
-            
+
         }
 
 
-        private void _OpenFile(bool readOnly)
+        public void Create()
         {
-            _objExcel = new Application();
-            _objWorkBook = _objExcel.Workbooks.Open(Filename: _fullName, ReadOnly: readOnly);
-            _ReadWorkSheet();
-        }
-        public void CreateFile()
-        {
-            _objExcel = new Application();
+            //_objExcel = new Application();
+            try
+            {
+                //Книга.
+                _objWorkBook = _objExcel.Workbooks.Add(System.Reflection.Missing.Value);
+                //Таблица.
+                _objWorkSheet = (Worksheet)_objWorkBook.Worksheets.Item[1];
+            }
+            catch(Exception e)
+            {
+                throw new Exception(e.Message);
+            }
 
-            //Книга.
-            _objWorkBook = _objExcel.Workbooks.Add(System.Reflection.Missing.Value);
-            //Таблица.
-            _objWorkSheet = (Worksheet)_objWorkBook.Worksheets.Item[1];
         }
 
         private void _ReadWorkSheet()
         {
             _objWorkSheet = (Worksheet)_objWorkBook.Sheets[_workSheet];
-            _range = _objWorkSheet.UsedRange;
+            //_range = _objWorkSheet.UsedRange;
             
         }
 
 
-        public string[] ReadRow(int row)
+        public object[] ReadRow(int row)
         {
-            string[] values = new string[_columns];
-            for (int cCnt = 1; cCnt <= _columns; cCnt++)
+            object[] values = new object[Columns];
+            object[,] rowMatrix = GetRange(row,1,row,Columns);
+            for (int cCnt = 1; cCnt <= Columns; cCnt++)
             {
-                values[cCnt - 1] = ReadCell(row,cCnt);
+                values[cCnt - 1] = rowMatrix[1, cCnt] ;//== null ? "" : Convert.ToString(rowMatrix[1, cCnt])
             }
             return values;
         }
+        public object[,] GetRange(int minRow, int minColumn, int maxRow,int maxColumn )
+        {
+            Range range = _objWorkSheet.Range[_objWorkSheet.Cells[minRow, minColumn], _objWorkSheet.Cells[maxRow, maxColumn]];
+            var matrixRow = (object[,])range.Value;
 
+
+            return matrixRow;
+        }
+        
         public string ReadCell(int row, int column)
         {
-            return Convert.ToString((_range.Cells[row, column] as Range).Value2 == null ? "" : (_range.Cells[row, column] as Range).Value2);
+            return Convert.ToString((_objWorkSheet.UsedRange.Cells[row, column] as Range).Value2 == null ? "" : (_objWorkSheet.UsedRange.Cells[row, column] as Range).Value2);
         }
+
+
         public void WriteCell(int row, int column,string value)
         {
             _objWorkSheet.Cells[row, column] = value;
+
         }
 
 
-        public string[] GetHeader()
+        public void WriteRow(int row, string[] values)
         {
-            return ReadRow(_headerRow);
+            for (int cCnt = 1; cCnt <= Columns; cCnt++)
+            {
+                WriteCell(row,cCnt, values[cCnt-1]);
+            }
         }
 
 
-        public void CloseFile()
+        public void Close()
         {
+            //_objWorkBook.Close(false);
             _objExcel.Quit();
         }
 
         ~ExcelWorker()
         {
-            CloseFile();
+            Close();
         }
     }
 }
